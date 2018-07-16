@@ -1,29 +1,34 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import keras
-from keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential
+
 from keras.layers import Convolution2D, MaxPooling2D, Conv2D
 from keras.layers import Activation, Dropout, Flatten, Dense
+from keras.preprocessing.image import ImageDataGenerator
+from keras.optimizers import Adam
 from keras.models import model_from_json
+from keras.models import Sequential
+import matplotlib.pyplot as plt
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
 #Dimension de la imagen
 img_width, img_height = 150, 150
 #Carpeta que almacena las imagenes
 #con estas se entrenara la red
+print("[INFO] loading images...")
 train_data_dir = 'data/train'
 #carpeta con las muestras de validacion
 validation_data_dir = 'data/validation'
 #numero de imagenes que se concideran para la validacion
-train_samples = 2000
+train_samples = 1500
 #numero de images que se cocideran para la validacion
 validation_samples = 800
-
+INIT_LR = 1e-3
 #numero de veces que se ejecutara las red sobre el conjunto de entrenamiento
 #antes de empezar con la validacion
 
-epoch = 3
+epoch = 10
 #***** Inicio del modelo *****
 model= Sequential()
 #model.add(Convolution2D(nb_filter, nb_row, nb_col, ))
@@ -50,10 +55,11 @@ model.add(Activation('sigmoid'))
 
 
 # ** FIn del modelo **
+print("[INFO] compiling model...")
+opt = Adam(lr=INIT_LR, decay=INIT_LR / epoch)
 model.compile(loss='binary_crossentropy',
-              optimizer='rmsprop',
+              optimizer=opt,
               metrics=['accuracy'])
-
 # esta es la mejora de la configuración que utilizaremos para el entrenamiento
 # en el que generamos un gran número de imágenes transformadas de manera que el
 # modelo puede tratar con una gran variedad de escenarios del mundo real
@@ -84,20 +90,46 @@ validation_generator =  test_datagen.flow_from_directory(
 
 # aquí es donde se produce el proceso real
 # y llevará algún tiempo ejecutar este paso.
-model.fit_generator(
+print("[INFO] training network...")
+history = model.fit_generator(
         train_generator,
-        samples_per_epoch=train_samples,
-        nb_epoch=epoch,
+        verbose=1,
         validation_data=validation_generator,
-        nb_val_samples=validation_samples)
+        samples_per_epoch=train_samples,
+        epochs =epoch,
+        validation_steps=validation_samples)
 # for e in range(40):
 #     score = model.evaluate(validation_generator, verbose=0)
 #     print ('Test loss:', score[0])
 #     print ('Test accuracy:', score[1])
 
+# save the model to disk
+print("[INFO] serializing network...")
+model.save('soccer_balls.model')
+print("[INFO] model saved...")
 
+print("[INFO] saving model json...")
 clssf = model.to_json()
 with open("SoccerVali.json", "w") as json_file:
     json_file.write(clssf)
+print("[INFO] saving weights h5...")
 model.save_weights('BallsDweights.h5')
-print("model saved to disk....")
+
+print(history.history.keys())
+
+plt.plot(history.history['acc'])
+plt.plot(history.history['val_acc'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
+
+# summarize history for loss
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
